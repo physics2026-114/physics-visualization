@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>平抛运动对比演示 - 高中物理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0a0f1a;
+            --bg-secondary: #111827;
+            --fg: #e8edf5;
+            --muted: #6b7a94;
+            --accent: #00d4aa;
+            --accent-glow: rgba(0, 212, 170, 0.3);
+            --vx-color: #ff6b6b;
+            --vy-color: #4ecdc4;
+            --v-color: #ffd93d;
+            --grid: rgba(107, 122, 148, 0.15);
+            --card: rgba(17, 24, 39, 0.8);
+            --border: rgba(107, 122, 148, 0.2);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        .bg-grid {
+            position: fixed; inset: 0;
+            background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+            background-size: 40px 40px;
+            pointer-events: none; z-index: 0;
+        }
+
+        .bg-glow {
+            position: fixed; width: 600px; height: 600px;
+            border-radius: 50%; filter: blur(120px); opacity: 0.4;
+            pointer-events: none; z-index: 0;
+        }
+
+        .glow-1 { top: -200px; left: -200px; background: radial-gradient(circle, rgba(0, 212, 170, 0.3), transparent 70%); }
+        .glow-2 { bottom: -200px; right: -200px; background: radial-gradient(circle, rgba(167, 139, 250, 0.2), transparent 70%); }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+            padding: 24px;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: minmax(400px, 1fr) auto;
+            }
+        }
+
+        .canvas-wrapper {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #physicsCanvas { max-width: 100%; max-height: 100%; }
+
+        .control-panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            max-height: calc(100vh - 48px);
+        }
+
+        .panel-header {
+            display: flex; align-items: center; gap: 12px;
+            padding-bottom: 16px; border-bottom: 1px solid var(--border);
+        }
+
+        .panel-header h2 { font-size: 1.25rem; font-weight: 700; color: var(--fg); }
+
+        .panel-header .icon {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--accent), #00a88a);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 12px; }
+
+        .control-group label {
+            font-size: 0.875rem; font-weight: 600; color: var(--muted);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .control-group label span { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
+        input[type="range"] {
+            -webkit-appearance: none; width: 100%; height: 6px;
+            background: var(--bg-secondary); border-radius: 3px; outline: none; cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 18px; height: 18px;
+            background: var(--accent); border-radius: 50%; cursor: pointer;
+            box-shadow: 0 0 10px var(--accent-glow);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.2); box-shadow: 0 0 20px var(--accent-glow); }
+
+        .btn-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+        .btn {
+            padding: 12px 16px; border: none; border-radius: 10px;
+            font-family: 'Noto Sans SC', sans-serif; font-size: 0.875rem; font-weight: 600;
+            cursor: pointer; transition: all 0.2s ease;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #00a88a); color: var(--bg); }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px var(--accent-glow); }
+        .btn-secondary { background: var(--bg-secondary); color: var(--fg); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: rgba(107, 122, 148, 0.2); }
+        .btn-danger { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+        .btn:active { transform: scale(0.96); }
+
+        .data-section {
+            background: var(--bg-secondary); border-radius: 12px;
+            padding: 16px; border: 1px solid var(--border);
+        }
+
+        .data-section h3 {
+            font-size: 0.75rem; font-weight: 600; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px;
+        }
+
+        .data-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+        .data-item { display: flex; flex-direction: column; gap: 4px; }
+        .data-item .label { font-size: 0.75rem; color: var(--muted); }
+        .data-item .value { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 700; }
+        .data-item .value.vx { color: var(--vx-color); }
+        .data-item .value.vy { color: var(--vy-color); }
+        .data-item .value.v { color: var(--v-color); }
+        .data-item .value.accent { color: var(--accent); }
+
+        .history-list {
+            display: flex; flex-direction: column; gap: 8px;
+            max-height: 150px; overflow-y: auto; padding-right: 4px;
+        }
+        
+        .history-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px; background: rgba(0,0,0,0.2);
+            border-radius: 6px; font-size: 0.85rem;
+        }
+        
+        .history-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status-indicator {
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 12px; background: var(--bg-secondary);
+            border-radius: 8px; font-size: 0.8rem;
+        }
+
+        .status-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--muted);
+        }
+
+        .status-dot.running {
+            background: var(--accent); animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .fade-in { animation: fadeIn 0.6s ease-out forwards; opacity: 0; }
+        .fade-in-delay-1 { animation-delay: 0.1s; }
+        .fade-in-delay-2 { animation-delay: 0.2s; }
+        .fade-in-delay-3 { animation-delay: 0.3s; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .fade-in { animation: none; opacity: 1; }
+            .status-dot.running { animation: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-grid"></div>
+    <div class="bg-glow glow-1"></div>
+    <div class="bg-glow glow-2"></div>
+
+    <div class="main-container">
+        <div class="canvas-wrapper fade-in">
+            <canvas id="physicsCanvas" width="800" height="600"></canvas>
+        </div>
+
+        <div class="control-panel">
+            <div class="panel-header fade-in fade-in-delay-1">
+                <div class="icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0a0f1a" stroke-width="2.5">
+                        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+                    </svg>
+                </div>
+                <h2>平抛运动控制面板</h2>
+            </div>
+
+            <div class="status-indicator fade-in fade-in-delay-1">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">就绪 - 请调整参数开始实验</span>
+            </div>
+
+            <div class="control-group fade-in fade-in-delay-2">
+                <label>初速度 v₀ <span id="v0Display">10 m/s</span></label>
+                <input type="range" id="v0Slider" min="5" max="25" value="10" step="0.5">
+            </div>
+
+            <div class="control-group fade-in fade-in-delay-2">
+                <label>重力加速度 g <span id="gDisplay">10 m/s²</span></label>
+                <input type="range" id="gSlider" min="5" max="15" value="10" step="0.5">
+            </div>
+
+            <div class="btn-group fade-in fade-in-delay-2">
+                <button class="btn btn-primary" id="playBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                    开始实验
+                </button>
+                <button class="btn btn-secondary" id="pauseBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    暂停
+                </button>
+                <button class="btn btn-danger" id="resetBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                    清空全部
+                </button>
+            </div>
+
+            <div class="data-section fade-in fade-in-delay-3">
+                <h3>实验记录 (轨迹叠加)</h3>
+                <div class="history-list" id="historyList">
+                    <div style="color: var(--muted); font-size: 0.8rem; text-align: center; padding: 10px;">暂无记录</div>
+                </div>
+            </div>
+
+            <div class="data-section fade-in fade-in-delay-3">
+                <h3>当前运动实时参数</h3>
+                <div class="data-grid">
+                    <div class="data-item"><span class="label">时间 t</span><span class="value accent" id="dataTime">0.00 s</span></div>
+                    <div class="data-item"><span class="label">水平位移 x</span><span class="value accent" id="dataX">0.00 m</span></div>
+                    <div class="data-item"><span class="label">竖直位移 y</span><span class="value accent" id="dataY">0.00 m</span></div>
+                    <div class="data-item"><span class="label">水平速度 vx</span><span class="value vx" id="dataVx">0.00 m/s</span></div>
+                    <div class="data-item"><span class="label">竖直速度 vy</span><span class="value vy" id="dataVy">0.00 m/s</span></div>
+                    <div class="data-item"><span class="label">合速度 v</span><span class="value v" id="dataV">0.00 m/s</span></div>
+                    <div class="data-item"><span class="label">速度角 θ</span><span class="value v" id="dataAngle">0.00°</span></div>
+                    <div class="data-item"><span class="label">位移角 α</span><span class="value accent" id="dataDispAngle">0.00°</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ 初始化变量 ============
+        const canvas = document.getElementById('physicsCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 物理参数
+        let v0 = 10;
+        let g = 10;
+
+        // 动画状态
+        let isRunning = false;
+        let isPaused = false;
+        let currentTime = 0;
+        let animationId = null;
+        let lastTimestamp = 0;
+
+        // 轨迹存储
+        let currentTrajectoryPoints = [];
+        let trajectoryHistory = [];
+        
+        const TRAJECTORY_COLORS = [
+            '#a78bfa', '#f472b6', '#60a5fa', '#fbbf24', '#34d399', '#fb923c', '#c084fc', '#38bdf8'
+        ];
+        let colorIndex = 0;
+
+        // 坐标系参数
+        const origin = { x: 80, y: 100 };
+        const scale = 8; 
+
+        // 颜色常量
+        const COLORS = {
+            vx: '#ff6b6b',
+            vy: '#4ecdc4',
+            v: '#ffd93d',
+            ball: '#00d4aa',
+            grid: 'rgba(107, 122, 148, 0.2)',
+            axis: '#6b7a94',
+            text: '#e8edf5',
+            accent: '#00d4aa'
+        };
+
+        // DOM元素
+        const v0Slider = document.getElementById('v0Slider');
+        const gSlider = document.getElementById('gSlider');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const historyList = document.getElementById('historyList');
+
+        // ============ 物理计算 ============
+        function calculatePhysics(t) {
+            const vx = v0;
+            const vy = g * t;
+            const x = v0 * t;
+            const y = 0.5 * g * t * t;
+            const v = Math.sqrt(vx * vx + vy * vy);
+            const angle = vx > 0 ? Math.atan2(vy, vx) * 180 / Math.PI : 90;
+            const dispAngle = x > 0 ? Math.atan2(y, x) * 180 / Math.PI : 90;
+            return { t, x, y, vx, vy, v, angle, dispAngle };
+        }
+
+        function physicsToCanvas(px, py) {
+            return {
+                x: origin.x + px * scale,
+                y: origin.y + py * scale
+            };
+        }
+
+        // ============ 绘图核心 ============
+        function drawGrid() {
+            const width = canvas.width;
+            const height = canvas.height;
+            ctx.strokeStyle = COLORS.grid;
+            ctx.lineWidth = 1;
+
+            for (let x = origin.x; x < width; x += scale) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+            for (let y = origin.y; y < height; y += scale) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+
+            ctx.strokeStyle = COLORS.axis;
+            ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(width - 20, origin.y); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(width - 20, origin.y); ctx.lineTo(width - 30, origin.y - 6); ctx.lineTo(width - 30, origin.y + 6); ctx.closePath(); ctx.fillStyle = COLORS.axis; ctx.fill();
+            ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(origin.x, height - 20); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(origin.x, height - 20); ctx.lineTo(origin.x - 6, height - 30); ctx.lineTo(origin.x + 6, height - 30); ctx.closePath(); ctx.fill();
+
+            ctx.font = 'bold 14px "Noto Sans SC"';
+            ctx.fillStyle = COLORS.text;
+            ctx.fillText('x (水平)', width - 70, origin.y - 15);
+            ctx.fillText('y (竖直)', origin.x + 10, height - 35);
+            ctx.fillText('O', origin.x - 20, origin.y - 10);
+
+            ctx.font = '12px "JetBrains Mono"';
+            ctx.fillStyle = COLORS.axis;
+            for (let i = 1; i <= 10; i++) { if (origin.x + i * scale < width - 40) ctx.fillText(i * 1, origin.x + i * scale - 4, origin.y + 20); }
+            for (let i = 1; i <= 15; i++) { if (origin.y + i * scale < height - 40) ctx.fillText(i * 1, origin.x - 25, origin.y + i * scale + 4); }
+        }
+
+        function drawArrow(fromX, fromY, toX, toY, color, lineWidth) {
+            const headLength = 12;
+            const dx = toX - fromX;
+            const dy = toY - fromY;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            if (length < 1) return;
+            const angle = Math.atan2(dy, dx);
+
+            ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lineWidth; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(fromX, fromY); ctx.lineTo(toX, toY); ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headLength * Math.cos(angle - Math.PI / 6), toY - headLength * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(toX - headLength * Math.cos(angle + Math.PI / 6), toY - headLength * Math.sin(angle + Math.PI / 6));
+            ctx.closePath(); ctx.fill();
+        }
+
+        // 绘制标签：增加背景，支持对齐
+        function drawLabel(text, x, y, color, align = 'left') {
+            ctx.font = 'bold 12px "JetBrains Mono"';
+            const metrics = ctx.measureText(text);
+            const textWidth = metrics.width;
+            const textHeight = 14;
+            
+            ctx.textAlign = align;
+            ctx.textBaseline = 'middle';
+
+            let bgX = x;
+            if (align === 'center') bgX = x - textWidth/2;
+            else if (align === 'right') bgX = x - textWidth;
+            // left is default
+
+            // 绘制背景
+            ctx.fillStyle = 'rgba(10, 15, 26, 0.85)';
+            ctx.fillRect(bgX - 3, y - textHeight/2 - 2, textWidth + 6, textHeight + 4);
+            
+            // 绘制文字
+            ctx.fillStyle = color;
+            ctx.fillText(text, x, y);
+            
+            // Reset
+            ctx.textAlign = 'start';
+            ctx.textBaseline = 'alphabetic';
+        }
+
+        function drawTrajectoryLine(points, color, isHistory) {
+            if (points.length < 2) return;
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = isHistory ? 2 : 3;
+            ctx.globalAlpha = isHistory ? 0.7 : 1.0;
+
+            const start = physicsToCanvas(points[0].x, points[0].y);
+            ctx.moveTo(start.x, start.y);
+            for (let i = 1; i < points.length; i++) {
+                const p = physicsToCanvas(points[i].x, points[i].y);
+                ctx.lineTo(p.x, p.y);
+            }
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+        }
+
+        function drawVectors(physics) {
+            const ballCanvas = physicsToCanvas(physics.x, physics.y);
+            const bx = ballCanvas.x;
+            const by = ballCanvas.y;
+
+            // 缩放因子
+            const vScale = 3; 
+            const vxLen = physics.vx * vScale;
+            const vyLen = physics.vy * vScale;
+            const vLen = physics.v * vScale; // 实际像素长度
+            const angleRad = Math.atan2(physics.vy, physics.vx);
+
+            // 计算三个箭头的尖端坐标
+            const tipVx = { x: bx + vxLen, y: by };
+            const tipVy = { x: bx, y: by + vyLen };
+            // 合速度尖端在平行四边形的对角
+            const tipV = { x: bx + vxLen, y: by + vyLen }; 
+
+            // 1. 平行四边形虚线
+            if (physics.vy > 0.1) {
+                ctx.setLineDash([5, 5]); ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'; ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(tipVx.x, tipVx.y); ctx.lineTo(tipV.x, tipV.y); ctx.stroke(); // 竖直虚线
+                ctx.beginPath(); ctx.moveTo(tipVy.x, tipVy.y); ctx.lineTo(tipV.x, tipV.y); ctx.stroke(); // 水平虚线
+                ctx.setLineDash([]);
+            }
+
+            // 2. 水平速度 vx
+            if (vxLen > 5) {
+                drawArrow(bx, by, tipVx.x, tipVx.y, COLORS.vx, 3);
+                // 标签位置：箭头尖端右侧
+                drawLabel(`vx=${physics.vx.toFixed(1)}`, tipVx.x + 5, tipVx.y, COLORS.vx, 'left');
+            }
+
+            // 3. 竖直速度 vy
+            if (vyLen > 5) {
+                drawArrow(bx, by, tipVy.x, tipVy.y, COLORS.vy, 3);
+                // 标签位置：箭头尖端下方
+                drawLabel(`vy=${physics.vy.toFixed(1)}`, tipVy.x, tipVy.y + 15, COLORS.vy, 'center');
+            }
+
+            // 4. 合速度 v
+            if (vLen > 5) {
+                // 绘制箭头：从球心到合速度尖端
+                drawArrow(bx, by, tipV.x, tipV.y, COLORS.v, 4);
+                
+                // 标签位置：箭头尖端右侧
+                // 由于vy标签在下方，v标签在右下，两者自然分开
+                drawLabel(`v=${physics.v.toFixed(1)}`, tipV.x + 5, tipV.y, COLORS.v, 'left');
+
+                // 角度标注
+                if (physics.vy > 0.5) {
+                    ctx.beginPath(); ctx.arc(bx, by, 20, 0, angleRad, false);
+                    ctx.strokeStyle = COLORS.v; ctx.lineWidth = 2; ctx.stroke();
+                    drawLabel(`θ=${physics.angle.toFixed(0)}°`, bx + 25, by - 10, COLORS.v, 'left');
+                }
+            }
+        }
+
+        function drawBall(physics) {
+            const pos = physicsToCanvas(physics.x, physics.y);
+            const gradient = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 25);
+            gradient.addColorStop(0, 'rgba(0, 212, 170, 0.4)');
+            gradient.addColorStop(1, 'rgba(0, 212, 170, 0)');
+            ctx.beginPath(); ctx.arc(pos.x, pos.y, 25, 0, Math.PI * 2); ctx.fillStyle = gradient; ctx.fill();
+            ctx.beginPath(); ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2); ctx.fillStyle = COLORS.ball; ctx.fill();
+            ctx.beginPath(); ctx.arc(pos.x - 3, pos.y - 3, 3, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; ctx.fill();
+        }
+
+        // ============ 主绘制循环 ============
+        function draw(physics) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#0d1320';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawGrid();
+
+            trajectoryHistory.forEach(traj => {
+                drawTrajectoryLine(traj.points, traj.color, true);
+            });
+
+            drawTrajectoryLine(currentTrajectoryPoints, TRAJECTORY_COLORS[colorIndex % TRAJECTORY_COLORS.length], false);
+
+            if (physics) {
+                drawVectors(physics);
+                drawBall(physics);
+            } else if (!isRunning && currentTrajectoryPoints.length > 0) {
+                const lastPoint = currentTrajectoryPoints[currentTrajectoryPoints.length - 1];
+                const endPhysics = calculatePhysics(lastPoint.t);
+                drawVectors(endPhysics);
+                drawBall(endPhysics);
+            } else {
+                drawBall({x:0, y:0});
+            }
+            
+            ctx.font = 'bold 18px "JetBrains Mono"';
+            ctx.fillStyle = COLORS.text;
+            ctx.textAlign = 'left';
+            ctx.fillText(`t = ${physics ? physics.t.toFixed(2) : '0.00'} s`, 20, 30);
+        }
+
+        // ============ 数据更新 ============
+        function updateDataDisplay(physics) {
+            if (!physics) physics = {t:0,x:0,y:0,vx:v0,vy:0,v:v0,angle:0,dispAngle:0};
+            document.getElementById('dataTime').textContent = physics.t.toFixed(2) + ' s';
+            document.getElementById('dataX').textContent = physics.x.toFixed(2) + ' m';
+            document.getElementById('dataY').textContent = physics.y.toFixed(2) + ' m';
+            document.getElementById('dataVx').textContent = physics.vx.toFixed(2) + ' m/s';
+            document.getElementById('dataVy').textContent = physics.vy.toFixed(2) + ' m/s';
+            document.getElementById('dataV').textContent = physics.v.toFixed(2) + ' m/s';
+            document.getElementById('dataAngle').textContent = physics.angle.toFixed(1) + '°';
+            document.getElementById('dataDispAngle').textContent = physics.dispAngle.toFixed(1) + '°';
+        }
+
+        function updateHistoryList() {
+            historyList.innerHTML = '';
+            if (trajectoryHistory.length === 0) {
+                historyList.innerHTML = '<div style="color: var(--muted); font-size: 0.8rem; text-align: center; padding: 10px;">暂无记录</div>';
+                return;
+            }
+            trajectoryHistory.forEach((traj, index) => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `
+                    <div class="history-dot" style="background: ${traj.color}"></div>
+                    <span>实验${index + 1}: v₀=${traj.v0}m/s, g=${traj.g}m/s²</span>
+                `;
+                historyList.appendChild(item);
+            });
+            historyList.scrollTop = historyList.scrollHeight;
+        }
+
+        // ============ 动画控制 ============
+        function animate(timestamp) {
+            if (!isRunning || isPaused) return;
+
+            if (lastTimestamp === 0) lastTimestamp = timestamp;
+            const deltaTime = (timestamp - lastTimestamp) / 1000;
+            lastTimestamp = timestamp;
+
+            currentTime += deltaTime;
+
+            const physics = calculatePhysics(currentTime);
+
+            if (physics.x > 60 || physics.y > 45) {
+                saveCurrentTrajectory();
+                stopAnimation();
+                return;
+            }
+
+            currentTrajectoryPoints.push({ x: physics.x, y: physics.y, t: physics.t });
+
+            draw(physics);
+            updateDataDisplay(physics);
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function saveCurrentTrajectory() {
+            if (currentTrajectoryPoints.length < 2) return;
+            
+            const currentColor = TRAJECTORY_COLORS[colorIndex % TRAJECTORY_COLORS.length];
+            
+            trajectoryHistory.push({
+                points: [...currentTrajectoryPoints],
+                color: currentColor,
+                v0: v0,
+                g: g
+            });
+            
+            colorIndex++;
+            currentTrajectoryPoints = [];
+            updateHistoryList();
+            
+            statusText.textContent = `实验${trajectoryHistory.length}完成，可调整参数继续`;
+        }
+
+        function startAnimation() {
+            if (isRunning && !isPaused) return;
+            
+            if (!isPaused) {
+                currentTrajectoryPoints = [];
+                currentTime = 0;
+            }
+            
+            isRunning = true;
+            isPaused = false;
+            lastTimestamp = 0;
+            
+            statusDot.classList.add('running');
+            statusText.textContent = '运动中...';
+            
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function pauseAnimation() {
+            if (!isRunning) return;
+            isPaused = !isPaused;
+            
+            if (isPaused) {
+                statusDot.classList.remove('running');
+                statusText.textContent = '已暂停';
+                cancelAnimationFrame(animationId);
+            } else {
+                statusDot.classList.add('running');
+                statusText.textContent = '运动中...';
+                lastTimestamp = 0;
+                animationId = requestAnimationFrame(animate);
+            }
+        }
+
+        function stopAnimation() {
+            isRunning = false;
+            isPaused = false;
+            statusDot.classList.remove('running');
+            if (animationId) cancelAnimationFrame(animationId);
+            animationId = null;
+            lastTimestamp = 0;
+            
+            draw(calculatePhysics(currentTime));
+        }
+
+        function resetAll() {
+            stopAnimation();
+            trajectoryHistory = [];
+            currentTrajectoryPoints = [];
+            currentTime = 0;
+            colorIndex = 0;
+            updateHistoryList();
+            statusText.textContent = '已重置，请开始新实验';
+            draw(null);
+            updateDataDisplay(null);
+        }
+
+        // ============ 事件绑定 ============
+        v0Slider.addEventListener('input', function() {
+            v0 = parseFloat(this.value);
+            document.getElementById('v0Display').textContent = v0 + ' m/s';
+            if (!isRunning) updateDataDisplay(null);
+        });
+
+        gSlider.addEventListener('input', function() {
+            g = parseFloat(this.value);
+            document.getElementById('gDisplay').textContent = g + ' m/s²';
+            if (!isRunning) updateDataDisplay(null);
+        });
+
+        playBtn.addEventListener('click', startAnimation);
+        pauseBtn.addEventListener('click', pauseAnimation);
+        resetBtn.addEventListener('click', resetAll);
+
+        document.addEventListener('keydown', function(e) {
+            if (e.code === 'Space') { e.preventDefault(); if (!isRunning) startAnimation(); else pauseAnimation(); }
+            else if (e.code === 'KeyR') { resetAll(); }
+        });
+
+        function resizeCanvas() {
+            const wrapper = canvas.parentElement;
+            const maxWidth = wrapper.clientWidth - 40;
+            const maxHeight = wrapper.clientHeight - 40;
+            const ratio = 800 / 600;
+            let newWidth = Math.min(maxWidth, 800);
+            let newHeight = newWidth / ratio;
+            if (newHeight > maxHeight) { newHeight = maxHeight; newWidth = newHeight * ratio; }
+            canvas.style.width = newWidth + 'px';
+            canvas.style.height = newHeight + 'px';
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // 初始化
+        resizeCanvas();
+        draw(null);
+        updateDataDisplay(null);
+    </script>
+</body>
+</html>
