@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关联速度 - 梯子下滑模型 (角度修正版)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --bg-card: #ffffff;
+      --fg: #1e293b;
+      --muted: #64748b;
+      --accent: #0d9488;
+      --wall: #e2e8f0;
+      --ground: #d1fae5;
+      --ladder: #b45309;
+      --v-a: #2563eb;
+      --v-b: #dc2626;
+      --v-parallel: #059669;
+      --v-perp: #94a3b8;
+    }
+    
+    body {
+      font-family: 'Noto Sans SC', sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+    }
+    
+    .main-container {
+      display: flex;
+      height: 100vh;
+      padding: 20px;
+      gap: 20px;
+      box-sizing: border-box;
+    }
+    
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: var(--bg-card);
+      border-radius: 16px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .control-area {
+      width: 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+    
+    .card {
+      background: var(--bg-card);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    
+    .btn {
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 16px;
+    }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(13, 148, 136, 0.3); }
+    
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 8px;
+      border-radius: 4px;
+      background: #e2e8f0;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: 3px solid white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .data-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+    
+    .formula-box {
+      background: #f0fdfa;
+      border: 1px solid #ccfbf1;
+      padding: 15px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    
+    .formula-main {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    
+    .legend-item { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+    .legend-line { width: 24px; height: 4px; border-radius: 2px; }
+
+    @media (max-width: 900px) {
+      .main-container { flex-direction: column; height: auto; }
+      .control-area { width: 100%; }
+      .canvas-area { min-height: 60vh; }
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <!-- 左侧：画布区域 -->
+    <div class="canvas-area">
+      <canvas id="mainCanvas"></canvas>
+    </div>
+    
+    <!-- 右侧：控制与数据 -->
+    <div class="control-area">
+      <h1 class="text-2xl font-bold mb-1">关联速度：梯子下滑</h1>
+      <p class="text-[var(--muted)] text-sm mb-2">刚性杆模型：两端沿杆方向速度分量相等</p>
+      
+      <!-- 核心公式 -->
+      <div class="card">
+        <div class="formula-box">
+          <div class="text-xs text-[var(--muted)] mb-2 font-sans">约束条件：沿杆分量相等</div>
+          <div class="formula-main">
+            v<sub>A</sub>cosθ = v<sub>B</sub>sinθ
+          </div>
+        </div>
+      </div>
+      
+      <!-- 实时数据 -->
+      <div class="card">
+        <h3 class="font-semibold mb-4 text-[var(--accent)] border-b pb-2">实时物理量</h3>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center">
+            <span class="text-[var(--muted)]">杆与地面夹角 θ</span>
+            <span class="data-value text-[var(--accent)]" id="angleValue">60.0°</span>
+          </div>
+          <div class="h-px bg-gray-100"></div>
+          
+          <div class="border-l-4 border-[var(--v-a)] pl-3 py-1">
+            <div class="flex justify-between items-center">
+              <span class="text-sm font-medium">A端实际速度</span>
+              <span class="data-value text-[var(--v-a)]" id="vAValue">2.00</span>
+            </div>
+            <div class="text-xs text-right text-[var(--muted)]">m/s</div>
+          </div>
+          
+          <div class="border-l-4 border-[var(--v-b)] pl-3 py-1">
+            <div class="flex justify-between items-center">
+              <span class="text-sm font-medium">B端实际速度</span>
+              <span class="data-value text-[var(--v-b)]" id="vBValue">3.46</span>
+            </div>
+            <div class="text-xs text-right text-[var(--muted)]">m/s</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 控制面板 -->
+      <div class="card">
+        <h3 class="font-semibold mb-4 text-[var(--accent)] border-b pb-2">参数控制</h3>
+        <div class="space-y-4">
+          <div>
+            <div class="flex justify-between mb-2">
+              <label class="font-medium">A端速度</label>
+              <span class="text-[var(--accent)] font-mono" id="speedLabel">2.0 m/s</span>
+            </div>
+            <input type="range" id="speedSlider" min="0.5" max="4" step="0.1" value="2">
+          </div>
+          
+          <div class="flex gap-3 pt-2">
+            <button class="btn flex-1" id="playBtn">▶ 播放</button>
+            <button class="btn flex-1" style="background: #64748b;" id="resetBtn">↺ 重置</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 图例 -->
+      <div class="card">
+         <div class="grid grid-cols-2 gap-3">
+           <div class="legend-item"><div class="legend-line" style="background: var(--v-a)"></div>实际速度</div>
+           <div class="legend-item"><div class="legend-line" style="background: var(--v-parallel)"></div>沿杆分量</div>
+           <div class="legend-item"><div class="legend-line" style="background: var(--v-perp); background: repeating-linear-gradient(90deg, #94a3b8 0, #94a3b8 4px, transparent 4px, transparent 8px); height: 2px;"></div>垂直杆分量</div>
+         </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========== 配置与状态 ==========
+    const C = {
+      bg: '#ffffff', grid: '#f1f5f9',
+      wall: '#e2e8f0', ground: '#d1fae5',
+      ladder: '#b45309', ladderWidth: 12, 
+      vA: '#2563eb', vB: '#dc2626', 
+      vParallel: '#059669', vPerp: '#94a3b8',
+      accent: '#0d9488', text: '#0f172a'
+    };
+
+    let speedA = 2.0;
+    let isPlaying = false;
+    let lastTime = 0;
+    
+    const LADDER_LEN = 10;
+    let xA = 5.0; 
+    const MIN_ANGLE = 5; 
+    
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // ========== 物理核心 ==========
+    function getPhysicsState() {
+      const yB_sq = LADDER_LEN * LADDER_LEN - xA * xA;
+      const yB = Math.sqrt(Math.max(0, yB_sq));
+      const theta = Math.atan2(yB, xA);
+      
+      let vB = 0;
+      if (yB > 0.1) {
+        vB = speedA * (xA / yB);
+      } else {
+        vB = 50; 
+      }
+      
+      return { xA, yB, theta, vA: speedA, vB };
+    }
+
+    // ========== 绘图辅助 ==========
+    function drawArrow(ctx, x1, y1, x2, y2, color, width, headSize) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const angle = Math.atan2(dy, dx);
+      const len = Math.sqrt(dx*dx + dy*dy);
+      
+      if (len < 1) return;
+
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headSize * Math.cos(angle - Math.PI/6), y2 - headSize * Math.sin(angle - Math.PI/6));
+      ctx.lineTo(x2 - headSize * Math.cos(angle + Math.PI/6), y2 - headSize * Math.sin(angle + Math.PI/6));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawDashedLine(ctx, x1, y1, x2, y2, color, width) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.setLineDash([8, 6]);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // ========== 主绘制函数 ==========
+    function draw() {
+      const W = canvas.width, H = canvas.height;
+      
+      // 1. 坐标映射优化
+      const padding = 40;
+      const viewSize = Math.min(W, H) - padding * 2;
+      const scale = (viewSize / LADDER_LEN) * 0.85; 
+      
+      const OX = padding + 30; 
+      const OY = H - padding - 30; 
+      
+      const toScreen = (px, py) => ({
+        x: OX + px * scale,
+        y: OY - py * scale
+      });
+      
+      const state = getPhysicsState();
+      const posA = toScreen(state.xA, 0);
+      const posB = toScreen(0, state.yB);
+      
+      // 2. 背景
+      ctx.fillStyle = C.bg;
+      ctx.fillRect(0, 0, W, H);
+      
+      // 3. 墙壁与地面
+      ctx.fillStyle = C.wall;
+      ctx.fillRect(OX - 20, 0, 20, H); 
+      ctx.fillStyle = C.ground;
+      ctx.fillRect(0, OY, W, 20);
+      
+      // 4. 网格
+      ctx.strokeStyle = C.grid;
+      ctx.lineWidth = 1;
+      const gridStep = 2; 
+      for(let i=0; i<=LADDER_LEN + 2; i+=gridStep) {
+        const pX = toScreen(i, 0).x;
+        ctx.beginPath(); ctx.moveTo(pX, 0); ctx.lineTo(pX, H); ctx.stroke();
+        const pY = toScreen(0, i).y;
+        ctx.beginPath(); ctx.moveTo(0, pY); ctx.lineTo(W, pY); ctx.stroke();
+      }
+      
+      // 5. 梯子
+      ctx.strokeStyle = C.ladder;
+      ctx.lineWidth = C.ladderWidth;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(posA.x, posA.y);
+      ctx.lineTo(posB.x, posB.y);
+      ctx.stroke();
+      
+      // 6. 角度标注 (修正：角度位于A点左侧，梯子与地面之间)
+      const arcR = 50; 
+      ctx.strokeStyle = C.accent;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      // A点左侧地面方向角度是 -PI (或 PI)
+      // 梯子方向角度通过 atan2 计算
+      const angleLadder = Math.atan2(posB.y - posA.y, posB.x - posA.x);
+      // 弧线从地面(左侧, -PI)画到梯子(angleLadder)
+      // 注意：Canvas坐标系中，逆时针为正。angleLadder (-PI < angle < -PI/2) > -PI
+      // 所以弧线是从 -PI 逆时针画到 angleLadder
+      ctx.arc(posA.x, posA.y, arcR, -Math.PI, angleLadder, false); 
+      ctx.stroke();
+      
+      // 角度数值文本：跟随弧线中点
+      // 弧线中点角度
+      const textAngle = (-Math.PI + angleLadder) / 2;
+      // 文本位置：在弧线外侧
+      const labelX = posA.x + (arcR + 25) * Math.cos(textAngle);
+      const labelY = posA.y + (arcR + 25) * Math.sin(textAngle);
+      
+      ctx.fillStyle = C.accent;
+      ctx.font = 'bold 22px "Noto Sans SC"';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`θ`, labelX, labelY);
+      
+      // 在θ旁边显示具体数值
+      // 稍微偏移一点显示数值
+      ctx.font = 'bold 18px "Noto Sans SC"';
+      ctx.fillText(`=${(state.theta * 180 / Math.PI).toFixed(1)}°`, labelX + 30, labelY);
+
+      // 7. 标注 A, B 点
+      ctx.fillStyle = C.vA;
+      ctx.beginPath(); ctx.arc(posA.x, posA.y, 14, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px sans-serif'; 
+      ctx.fillText("A", posA.x, posA.y + 1);
+      
+      ctx.fillStyle = C.vB;
+      ctx.beginPath(); ctx.arc(posB.x, posB.y, 14, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.fillText("B", posB.x, posB.y + 1);
+
+      // 8. 速度分解图示
+      const vScale = 40; 
+      const arrowWidth = 4;
+      const arrowHead = 12;
+      
+      // --- A点分解 ---
+      // A的实际速度 (向右)
+      const vA_EndX = posA.x + state.vA * vScale;
+      drawArrow(ctx, posA.x, posA.y, vA_EndX, posA.y, C.vA, arrowWidth, arrowHead);
+      ctx.fillStyle = C.vA; ctx.font = 'bold 20px "Noto Sans SC"';
+      ctx.textAlign = 'left';
+      ctx.fillText("vA", vA_EndX + 10, posA.y + 5);
+      
+      // A点沿杆方向
+      const vecBA = { x: posA.x - posB.x, y: posA.y - posB.y }; 
+      const lenBA = Math.sqrt(vecBA.x*vecBA.x + vecBA.y*vecBA.y);
+      const normBA = { x: vecBA.x/lenBA, y: vecBA.y/lenBA };
+      
+      const vA_para = state.vA * Math.cos(state.theta);
+      const vAP_EndX = posA.x + vA_para * vScale * normBA.x;
+      const vAP_EndY = posA.y + vA_para * vScale * normBA.y;
+      drawArrow(ctx, posA.x, posA.y, vAP_EndX, vAP_EndY, C.vParallel, arrowWidth, arrowHead);
+      
+      // 垂直杆分量
+      drawDashedLine(ctx, vA_EndX, posA.y, vAP_EndX, vAP_EndY, C.vPerp, 2);
+      drawArrow(ctx, posA.x, posA.y, posA.x + (vA_EndX - vAP_EndX), posA.y + (posA.y - vAP_EndY), C.vPerp, arrowWidth, arrowHead);
+
+      // --- B点分解 ---
+      // B的实际速度 (向下)
+      const vB_EndY = posB.y + state.vB * vScale;
+      drawArrow(ctx, posB.x, posB.y, posB.x, vB_EndY, C.vB, arrowWidth, arrowHead);
+      ctx.fillStyle = C.vB; ctx.font = 'bold 20px "Noto Sans SC"';
+      ctx.textAlign = 'left';
+      ctx.fillText("vB", posB.x + 10, vB_EndY + 5);
+      
+      // B点沿杆方向
+      const vB_para = state.vB * Math.sin(state.theta);
+      const vBP_EndX = posB.x + vB_para * vScale * normBA.x;
+      const vBP_EndY = posB.y + vB_para * vScale * normBA.y;
+      drawArrow(ctx, posB.x, posB.y, vBP_EndX, vBP_EndY, C.vParallel, arrowWidth, arrowHead);
+      
+      // B点垂直杆分量
+      drawDashedLine(ctx, posB.x, vB_EndY, vBP_EndX, vBP_EndY, C.vPerp, 2);
+      drawArrow(ctx, posB.x, posB.y, posB.x + (posB.x - vBP_EndX), posB.y + (vB_EndY - vBP_EndY), C.vPerp, arrowWidth, arrowHead);
+      
+      // 9. 更新数据面板
+      document.getElementById('angleValue').textContent = (state.theta * 180 / Math.PI).toFixed(1) + '°';
+      document.getElementById('vAValue').textContent = state.vA.toFixed(2);
+      document.getElementById('vBValue').textContent = state.vB.toFixed(2);
+    }
+    
+    // ========== 动画循环 ==========
+    function update(dt) {
+      if (!isPlaying) return;
+      const state = getPhysicsState();
+      const minAngleRad = MIN_ANGLE * Math.PI / 180;
+      
+      if (state.theta < minAngleRad) {
+        isPlaying = false;
+        playBtn.textContent = '▶ 播放';
+        return;
+      }
+      
+      xA += state.vA * (dt / 1000);
+      const maxX = LADDER_LEN * Math.cos(minAngleRad);
+      if (xA > maxX) xA = maxX;
+    }
+
+    function loop(time) {
+      const dt = lastTime ? time - lastTime : 0;
+      lastTime = time;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    // ========== 交互控制 ==========
+    const playBtn = document.getElementById('playBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    
+    playBtn.onclick = () => {
+      const state = getPhysicsState();
+      if (state.theta < MIN_ANGLE * Math.PI / 180) reset();
+      isPlaying = !isPlaying;
+      playBtn.textContent = isPlaying ? '❚❚ 暂停' : '▶ 播放';
+    };
+    
+    function reset() {
+      isPlaying = false;
+      playBtn.textContent = '▶ 播放';
+      xA = 5.0;
+    }
+    
+    resetBtn.onclick = reset;
+    
+    document.getElementById('speedSlider').oninput = e => {
+      speedA = +e.target.value;
+      document.getElementById('speedLabel').textContent = speedA.toFixed(1) + ' m/s';
+    };
+    
+    function resize() {
+       const container = canvas.parentElement;
+       canvas.width = container.clientWidth;
+       canvas.height = container.clientHeight;
+       draw();
+    }
+    
+    window.addEventListener('resize', resize);
+    
+    // 初始化
+    resize();
+    requestAnimationFrame(loop);
+
+  </script>
+</body>
+</html>
